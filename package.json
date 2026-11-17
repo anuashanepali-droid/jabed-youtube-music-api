@@ -1,11 +1,19 @@
 {
-  "name": "yt-test",
+  "name": "render-youtube-music-api",
   "version": "1.0.0",
   "private": true,
+  "description": "YouTube search, video info and audio streaming API for Render Web Service",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "start:dev": "node --watch src/server.js"
+  },
   "engines": {
-    "node": "26.x"
+    "node": ">=20"
   },
   "dependencies": {
-    "adm-zip": "0.5.16"
+    "adm-zip": "^0.5.16",
+    "express": "^4.21.2",
+    "yt-search": "^2.12.1"
   }
 }
