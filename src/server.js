@@ -1,6 +1,6 @@
+
 const express = require("express");
 const ytSearch = require("yt-search");
-const { requireApiKey } = require("../lib/auth");
 const { ensureReady, streamAudio } = require("../lib/ytdlp");
 
 const app = express();
@@ -22,52 +22,93 @@ app.get("/", (_req, res) => {
       info: "/api/info?v=VIDEO_ID",
       stream: "/api/stream?v=VIDEO_ID"
     },
-    authentication: "Send x-api-key header"
+    authentication: "None (public access)"
   });
 });
 
 app.get("/health", (_req, res) => {
-  res.json({ ok: true, status: "online", service: "youtube-music-api" });
+  res.json({
+    ok: true,
+    status: "online",
+    service: "youtube-music-api"
+  });
 });
-
-app.use("/api", requireApiKey);
 
 app.get("/api/search", async (req, res) => {
   try {
-    const q = String(req.query.q || "").trim().slice(0, MAX_QUERY_LENGTH);
-    if (!q) return res.status(400).json({ ok: false, error: "Missing search query. Use ?q=..." });
+    const q = String(req.query.q || "")
+      .trim()
+      .slice(0, MAX_QUERY_LENGTH);
+
+    if (!q) {
+      return res.status(400).json({
+        ok: false,
+        error: "Missing search query. Use ?q=..."
+      });
+    }
 
     const result = await ytSearch(q);
-    const videos = (result.videos || []).slice(0, MAX_RESULTS).map(video => ({
-      title: video.title || "",
-      videoId: video.videoId || "",
-      url: video.url || (video.videoId ? `https://www.youtube.com/watch?v=${video.videoId}` : ""),
-      duration: video.duration || null,
-      timestamp: video.timestamp || null,
-      seconds: Number(video.seconds || 0),
-      thumbnail: video.thumbnail || "",
-      author: video.author?.name || "",
-      views: Number(video.views || 0),
-      ago: video.ago || ""
-    }));
 
-    res.json({ ok: true, query: q, total: videos.length, results: videos });
+    const videos = (result.videos || [])
+      .slice(0, MAX_RESULTS)
+      .map(video => ({
+        title: video.title || "",
+        videoId: video.videoId || "",
+        url: video.url || (
+          video.videoId
+            ? `https://www.youtube.com/watch?v=${video.videoId}`
+            : ""
+        ),
+        duration: video.duration || null,
+        timestamp: video.timestamp || null,
+        seconds: Number(video.seconds || 0),
+        thumbnail: video.thumbnail || "",
+        author: video.author?.name || "",
+        views: Number(video.views || 0),
+        ago: video.ago || ""
+      }));
+
+    res.json({
+      ok: true,
+      query: q,
+      total: videos.length,
+      results: videos
+    });
+
   } catch (error) {
     console.error("[search]", error.message);
-    res.status(502).json({ ok: false, error: "YouTube search failed", detail: error.message });
+
+    res.status(502).json({
+      ok: false,
+      error: "YouTube search failed",
+      detail: error.message
+    });
   }
 });
 
 app.get("/api/info", async (req, res) => {
   try {
     const id = String(req.query.v || req.query.id || "").trim();
+
     if (!/^[a-zA-Z0-9_-]{11}$/.test(id)) {
-      return res.status(400).json({ ok: false, error: "Invalid video ID. Use ?v=VIDEO_ID" });
+      return res.status(400).json({
+        ok: false,
+        error: "Invalid video ID. Use ?v=VIDEO_ID"
+      });
     }
 
     const result = await ytSearch({ videoId: id });
-    const video = result && result.title ? result : (result.videos || [])[0];
-    if (!video) return res.status(404).json({ ok: false, error: "Video not found" });
+
+    const video = result && result.title
+      ? result
+      : (result.videos || [])[0];
+
+    if (!video) {
+      return res.status(404).json({
+        ok: false,
+        error: "Video not found"
+      });
+    }
 
     res.json({
       ok: true,
@@ -84,23 +125,35 @@ app.get("/api/info", async (req, res) => {
         ago: video.ago || ""
       }
     });
+
   } catch (error) {
     console.error("[info]", error.message);
-    res.status(502).json({ ok: false, error: "Could not get video information", detail: error.message });
+
+    res.status(502).json({
+      ok: false,
+      error: "Could not get video information",
+      detail: error.message
+    });
   }
 });
 
 app.get("/api/stream", async (req, res) => {
   const id = String(req.query.v || req.query.id || "").trim();
+
   if (!/^[a-zA-Z0-9_-]{11}$/.test(id)) {
-    return res.status(400).json({ ok: false, error: "Invalid video ID. Use ?v=VIDEO_ID" });
+    return res.status(400).json({
+      ok: false,
+      error: "Invalid video ID. Use ?v=VIDEO_ID"
+    });
   }
 
   try {
     await ensureReady();
     streamAudio(id, req, res);
+
   } catch (error) {
     console.error("[stream setup]", error.stack || error.message);
+
     if (!res.headersSent) {
       res.status(503).json({
         ok: false,
@@ -113,7 +166,13 @@ app.get("/api/stream", async (req, res) => {
 
 app.use((err, _req, res, _next) => {
   console.error("[server]", err.stack || err.message);
-  if (!res.headersSent) res.status(500).json({ ok: false, error: "Internal server error" });
+
+  if (!res.headersSent) {
+    res.status(500).json({
+      ok: false,
+      error: "Internal server error"
+    });
+  }
 });
 
 app.listen(PORT, "0.0.0.0", () => {
