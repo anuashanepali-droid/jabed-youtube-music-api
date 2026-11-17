@@ -1,7 +1,7 @@
 const express = require("express");
 const ytSearch = require("yt-search");
-const { requireApiKey } = require("./lib/auth");
-const { ensureReady, streamAudio } = require("./lib/ytdlp");
+const { requireApiKey } = require("../lib/auth");
+const { ensureReady, streamAudio } = require("../lib/ytdlp");
 
 const app = express();
 app.disable("x-powered-by");
