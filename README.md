@@ -1,32 +1,27 @@
-# Render YouTube Music API
+# Render YouTube Music API v1.2.0
 
-## Project structure
+## Files
+- `src/server.js`
+- `lib/ytdlp.js`
+- `package.json`
+- `cookies.txt` (add your own; not included)
 
-```text
-youtube_music_api/
-├── src/
-│   └── server.js
-├── lib/
-│   └── ytdlp.js
-├── package.json
-└── cookies.txt   # Add your own Netscape-format cookie file; not included
-```
+Place your own Netscape-format `cookies.txt` in the repository root, alongside `package.json`.
+Keep session cookies private and restrict repository access. A private Git repository is still a sensitive place to store login-session cookies; a Render Secret File is safer.
 
-## Setup
-
-1. Upload this project's files to your existing **private** GitHub repository.
-2. Add your own `cookies.txt` at the repository root (same level as `package.json`).
-3. Keep the repository private and limit collaborator access. Cookie files are sensitive login-session data; consider using Render Secret Files or a secret environment variable instead of committing them.
-4. In Render, set the Start Command to `npm start`.
-5. Ensure the service uses Node.js 18 or newer.
-
-No actual cookie/session data is included in this ZIP.
+## Render
+- Start Command: `npm start`
+- Node.js: 18+
 
 ## Endpoints
+- `GET /health`
+- `GET /api/search?q=believer`
+- `GET /api/info?v=VIDEO_ID`
+- `GET /api/stream?v=VIDEO_ID&type=audio`
+- `GET /api/stream?v=VIDEO_ID&type=video`
 
-- `/health`
-- `/api/search?q=believer`
-- `/api/info?v=VIDEO_ID`
-- `/api/stream?v=VIDEO_ID`
+Video selection is limited to formats reported at or below 30 MB, and the stream also enforces a 30 MiB output cap. If no compatible format is available under that limit, the API returns an error rather than sending a larger file. The video endpoint requests MP4 where available; YouTube's available formats vary by video.
 
-The API is public and has no authentication, as requested in the supplied server code. Protect it with access controls/rate limits before sharing widely.
+Audio defaults to `m4a` when available, then other audio-only formats. This endpoint streams the selected media bytes; it does not transcode them to MP3.
+
+The API has no authentication, matching the supplied original design. Add access control and rate limiting before public distribution.

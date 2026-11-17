@@ -1,15 +1,11 @@
 {
   "name": "render-youtube-music-api",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "private": true,
-  "description": "YouTube search, video info and audio streaming API for Render",
+  "description": "YouTube search, video info, audio and video streaming API for Render",
   "main": "src/server.js",
-  "scripts": {
-    "start": "node src/server.js"
-  },
-  "engines": {
-    "node": ">=18"
-  },
+  "scripts": { "start": "node src/server.js" },
+  "engines": { "node": ">=18" },
   "dependencies": {
     "adm-zip": "^0.5.16",
     "express": "^4.21.2",
