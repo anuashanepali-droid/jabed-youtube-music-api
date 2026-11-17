@@ -18,7 +18,7 @@ app.get("/", (_req, res) => {
   res.json({
     ok: true,
     name: "Render YouTube Music API",
-    version: "1.1.0",
+    version: "1.1.1",
     endpoints: {
       health: "/health",
       search: "/api/search?q=believer",
@@ -30,20 +30,12 @@ app.get("/", (_req, res) => {
 });
 
 app.get("/health", (_req, res) => {
-  res.json({
-    ok: true,
-    status: "online",
-    service: "youtube-music-api"
-  });
+  res.json({ ok: true, status: "online", service: "youtube-music-api" });
 });
 
-// YouTube Search (kept on yt-search)
 app.get("/api/search", async (req, res) => {
   try {
-    const q = String(req.query.q || "")
-      .trim()
-      .slice(0, MAX_QUERY_LENGTH);
-
+    const q = String(req.query.q || "").trim().slice(0, MAX_QUERY_LENGTH);
     if (!q) {
       return res.status(400).json({
         ok: false,
@@ -52,61 +44,42 @@ app.get("/api/search", async (req, res) => {
     }
 
     const result = await ytSearch(q);
+    const videos = (result.videos || []).slice(0, MAX_RESULTS).map(video => ({
+      title: video.title || "",
+      videoId: video.videoId || "",
+      url: video.url || (video.videoId
+        ? `https://www.youtube.com/watch?v=${video.videoId}` : ""),
+      duration: video.duration || null,
+      timestamp: video.timestamp || null,
+      seconds: Number(video.seconds || 0),
+      thumbnail: video.thumbnail || "",
+      author: video.author?.name || "",
+      views: Number(video.views || 0),
+      ago: video.ago || ""
+    }));
 
-    const videos = (result.videos || [])
-      .slice(0, MAX_RESULTS)
-      .map(video => ({
-        title: video.title || "",
-        videoId: video.videoId || "",
-        url: video.url || (
-          video.videoId
-            ? `https://www.youtube.com/watch?v=${video.videoId}`
-            : ""
-        ),
-        duration: video.duration || null,
-        timestamp: video.timestamp || null,
-        seconds: Number(video.seconds || 0),
-        thumbnail: video.thumbnail || "",
-        author: video.author?.name || "",
-        views: Number(video.views || 0),
-        ago: video.ago || ""
-      }));
-
-    return res.json({
-      ok: true,
-      query: q,
-      total: videos.length,
-      results: videos
-    });
+    return res.json({ ok: true, query: q, total: videos.length, results: videos });
   } catch (error) {
     console.error("[search]", error.stack || error.message || error);
     return res.status(502).json({
-      ok: false,
-      error: "YouTube search failed",
+      ok: false, error: "YouTube search failed",
       detail: error.message || String(error)
     });
   }
 });
 
-// Video Info (uses the same yt-dlp setup as audio extraction)
 app.get("/api/info", async (req, res) => {
   try {
     const id = String(req.query.v || req.query.id || "").trim();
-
     if (!/^[a-zA-Z0-9_-]{11}$/.test(id)) {
       return res.status(400).json({
-        ok: false,
-        error: "Invalid video ID. Use ?v=VIDEO_ID"
+        ok: false, error: "Invalid video ID. Use ?v=VIDEO_ID"
       });
     }
 
     const video = await getVideoInfo(id);
-
     if (!video || !video.id) {
-      return res.status(404).json({
-        ok: false,
-        error: "Video not found"
-      });
+      return res.status(404).json({ ok: false, error: "Video not found" });
     }
 
     const seconds = Number(video.duration || 0);
@@ -119,12 +92,9 @@ app.get("/api/info", async (req, res) => {
         title: video.title || "",
         videoId: video.id || id,
         url: video.webpage_url || `https://www.youtube.com/watch?v=${id}`,
-        duration: seconds
-          ? {
-              seconds,
-              timestamp: video.duration_string || ""
-            }
-          : null,
+        duration: seconds ? {
+          seconds, timestamp: video.duration_string || ""
+        } : null,
         seconds,
         timestamp: video.duration_string || null,
         thumbnail,
@@ -136,21 +106,17 @@ app.get("/api/info", async (req, res) => {
   } catch (error) {
     console.error("[info]", error.stack || error.message || error);
     return res.status(502).json({
-      ok: false,
-      error: "Could not get video information",
+      ok: false, error: "Could not get video information",
       detail: error.message || String(error)
     });
   }
 });
 
-// Audio Stream
 app.get("/api/stream", async (req, res) => {
   const id = String(req.query.v || req.query.id || "").trim();
-
   if (!/^[a-zA-Z0-9_-]{11}$/.test(id)) {
     return res.status(400).json({
-      ok: false,
-      error: "Invalid video ID. Use ?v=VIDEO_ID"
+      ok: false, error: "Invalid video ID. Use ?v=VIDEO_ID"
     });
   }
 
@@ -161,8 +127,7 @@ app.get("/api/stream", async (req, res) => {
     console.error("[stream setup]", error.stack || error.message || error);
     if (!res.headersSent) {
       return res.status(503).json({
-        ok: false,
-        error: "Audio service is not ready",
+        ok: false, error: "Audio service is not ready",
         detail: error.message || String(error)
       });
     }
@@ -172,10 +137,7 @@ app.get("/api/stream", async (req, res) => {
 app.use((err, _req, res, _next) => {
   console.error("[server]", err.stack || err.message || err);
   if (!res.headersSent) {
-    res.status(500).json({
-      ok: false,
-      error: "Internal server error"
-    });
+    res.status(500).json({ ok: false, error: "Internal server error" });
   }
 });
 
