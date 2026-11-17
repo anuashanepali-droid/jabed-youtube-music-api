@@ -1,7 +1,10 @@
-
 const express = require("express");
 const ytSearch = require("yt-search");
-const { ensureReady, streamAudio } = require("../lib/ytdlp");
+const {
+  ensureReady,
+  getVideoInfo,
+  streamAudio
+} = require("../lib/ytdlp");
 
 const app = express();
 app.disable("x-powered-by");
@@ -15,7 +18,7 @@ app.get("/", (_req, res) => {
   res.json({
     ok: true,
     name: "Render YouTube Music API",
-    version: "1.0.0",
+    version: "1.1.0",
     endpoints: {
       health: "/health",
       search: "/api/search?q=believer",
@@ -34,6 +37,7 @@ app.get("/health", (_req, res) => {
   });
 });
 
+// YouTube Search (kept on yt-search)
 app.get("/api/search", async (req, res) => {
   try {
     const q = String(req.query.q || "")
@@ -68,24 +72,23 @@ app.get("/api/search", async (req, res) => {
         ago: video.ago || ""
       }));
 
-    res.json({
+    return res.json({
       ok: true,
       query: q,
       total: videos.length,
       results: videos
     });
-
   } catch (error) {
-    console.error("[search]", error.message);
-
-    res.status(502).json({
+    console.error("[search]", error.stack || error.message || error);
+    return res.status(502).json({
       ok: false,
       error: "YouTube search failed",
-      detail: error.message
+      detail: error.message || String(error)
     });
   }
 });
 
+// Video Info (uses the same yt-dlp setup as audio extraction)
 app.get("/api/info", async (req, res) => {
   try {
     const id = String(req.query.v || req.query.id || "").trim();
@@ -97,46 +100,50 @@ app.get("/api/info", async (req, res) => {
       });
     }
 
-    const result = await ytSearch({ videoId: id });
+    const video = await getVideoInfo(id);
 
-    const video = result && result.title
-      ? result
-      : (result.videos || [])[0];
-
-    if (!video) {
+    if (!video || !video.id) {
       return res.status(404).json({
         ok: false,
         error: "Video not found"
       });
     }
 
-    res.json({
+    const seconds = Number(video.duration || 0);
+    const thumbnails = Array.isArray(video.thumbnails) ? video.thumbnails : [];
+    const thumbnail = video.thumbnail || thumbnails.at(-1)?.url || "";
+
+    return res.json({
       ok: true,
       video: {
         title: video.title || "",
-        videoId: video.videoId || id,
-        url: video.url || `https://www.youtube.com/watch?v=${id}`,
-        duration: video.duration || null,
-        seconds: Number(video.seconds || 0),
-        timestamp: video.timestamp || null,
-        thumbnail: video.thumbnail || "",
-        author: video.author?.name || "",
-        views: Number(video.views || 0),
-        ago: video.ago || ""
+        videoId: video.id || id,
+        url: video.webpage_url || `https://www.youtube.com/watch?v=${id}`,
+        duration: seconds
+          ? {
+              seconds,
+              timestamp: video.duration_string || ""
+            }
+          : null,
+        seconds,
+        timestamp: video.duration_string || null,
+        thumbnail,
+        author: video.uploader || video.channel || "",
+        views: Number(video.view_count || 0),
+        ago: video.upload_date || video.release_date || ""
       }
     });
-
   } catch (error) {
-    console.error("[info]", error.message);
-
-    res.status(502).json({
+    console.error("[info]", error.stack || error.message || error);
+    return res.status(502).json({
       ok: false,
       error: "Could not get video information",
-      detail: error.message
+      detail: error.message || String(error)
     });
   }
 });
 
+// Audio Stream
 app.get("/api/stream", async (req, res) => {
   const id = String(req.query.v || req.query.id || "").trim();
 
@@ -150,23 +157,20 @@ app.get("/api/stream", async (req, res) => {
   try {
     await ensureReady();
     streamAudio(id, req, res);
-
   } catch (error) {
-    console.error("[stream setup]", error.stack || error.message);
-
+    console.error("[stream setup]", error.stack || error.message || error);
     if (!res.headersSent) {
-      res.status(503).json({
+      return res.status(503).json({
         ok: false,
         error: "Audio service is not ready",
-        detail: error.message
+        detail: error.message || String(error)
       });
     }
   }
 });
 
 app.use((err, _req, res, _next) => {
-  console.error("[server]", err.stack || err.message);
-
+  console.error("[server]", err.stack || err.message || err);
   if (!res.headersSent) {
     res.status(500).json({
       ok: false,
