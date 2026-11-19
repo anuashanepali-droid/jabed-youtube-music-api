@@ -1,8 +1,9 @@
+
 const ytSearch = require("yt-search");
 
 const MAX_RESULTS = 10;
 const MAX_QUERY_LENGTH = 180;
-const MAX_SHORT_DURATION = 60;
+const MAX_SHORT_DURATION = 180;
 
 function formatVideo(video, shorts = false) {
   const videoId = video.videoId || "";
@@ -13,8 +14,8 @@ function formatVideo(video, shorts = false) {
     title: video.title || "",
     videoId,
     url: shorts
-      ? (video.url || `https://www.youtube.com/shorts/${videoId}`)
-      : (video.url || `https://www.youtube.com/watch?v=${videoId}`),
+      ? `https://www.youtube.com/shorts/${videoId}`
+      : `https://www.youtube.com/watch?v=${videoId}`,
     duration: video.duration || null,
     timestamp: video.timestamp || null,
     seconds,
@@ -26,12 +27,20 @@ function formatVideo(video, shorts = false) {
   };
 }
 
+// Normal YouTube Video Search
 async function searchVideos(query) {
-  const q = String(query || "").trim().slice(0, MAX_QUERY_LENGTH);
-  if (!q) throw new Error("Search query is required");
+  const q = String(query || "")
+    .trim()
+    .slice(0, MAX_QUERY_LENGTH);
+
+  if (!q) {
+    throw new Error("Search query is required");
+  }
 
   const result = await ytSearch(q);
+
   const videos = (result.videos || [])
+    .filter(video => Boolean(video.videoId))
     .slice(0, MAX_RESULTS)
     .map(video => formatVideo(video));
 
@@ -44,15 +53,28 @@ async function searchVideos(query) {
   };
 }
 
+// YouTube Shorts Search
 async function searchShorts(query) {
-  const q = String(query || "").trim().slice(0, MAX_QUERY_LENGTH);
-  if (!q) throw new Error("Search query is required");
+  const q = String(query || "")
+    .trim()
+    .slice(0, MAX_QUERY_LENGTH);
 
+  if (!q) {
+    throw new Error("Search query is required");
+  }
+
+  // Search specifically for Shorts-related content
   const result = await ytSearch(`${q} #shorts`);
+
   const videos = (result.videos || [])
     .filter(video => {
       const seconds = Number(video.seconds || 0);
-      return seconds > 0 && seconds <= MAX_SHORT_DURATION && Boolean(video.videoId);
+
+      return (
+        seconds > 0 &&
+        seconds <= MAX_SHORT_DURATION &&
+        Boolean(video.videoId)
+      );
     })
     .slice(0, MAX_RESULTS)
     .map(video => formatVideo(video, true));
@@ -66,4 +88,8 @@ async function searchShorts(query) {
   };
 }
 
-module.exports = { searchVideos, searchShorts };
+module.exports = {
+  searchVideos,
+  searchShorts
+};
+    
