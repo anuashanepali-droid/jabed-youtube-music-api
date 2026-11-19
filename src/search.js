@@ -5,10 +5,10 @@ const MAX_RESULTS = 10;
 const MAX_QUERY_LENGTH = 180;
 const MAX_SHORT_DURATION = 180;
 
+// Format YouTube video data
 function formatVideo(video, shorts = false) {
   const videoId = video.videoId || "";
   const seconds = Number(video.seconds || 0);
-  const published = video.ago || null;
 
   return {
     title: video.title || "",
@@ -22,8 +22,8 @@ function formatVideo(video, shorts = false) {
     thumbnail: video.thumbnail || "",
     author: video.author?.name || "",
     views: Number(video.views || 0),
-    ago: published,
-    published
+    ago: video.ago || null,
+    published: video.ago || null
   };
 }
 
@@ -63,19 +63,45 @@ async function searchShorts(query) {
     throw new Error("Search query is required");
   }
 
-  // Search specifically for Shorts-related content
-  const result = await ytSearch(`${q} #shorts`);
+  const searchQueries = [
+    `${q} #shorts`,
+    `${q} shorts`,
+    `${q} youtube shorts`,
+    q
+  ];
 
-  const videos = (result.videos || [])
-    .filter(video => {
-      const seconds = Number(video.seconds || 0);
+  const collected = new Map();
 
-      return (
-        seconds > 0 &&
-        seconds <= MAX_SHORT_DURATION &&
-        Boolean(video.videoId)
+  for (const searchQuery of searchQueries) {
+    try {
+      const result = await ytSearch(searchQuery);
+
+      for (const video of result.videos || []) {
+        const videoId = video.videoId;
+        const seconds = Number(video.seconds || 0);
+
+        if (
+          videoId &&
+          seconds > 0 &&
+          seconds <= MAX_SHORT_DURATION &&
+          !collected.has(videoId)
+        ) {
+          collected.set(videoId, video);
+        }
+      }
+    } catch (error) {
+      console.error(
+        `[Shorts Search] ${searchQuery}:`,
+        error.message
       );
-    })
+    }
+
+    if (collected.size >= MAX_RESULTS) {
+      break;
+    }
+  }
+
+  const videos = [...collected.values()]
     .slice(0, MAX_RESULTS)
     .map(video => formatVideo(video, true));
 
@@ -92,4 +118,3 @@ module.exports = {
   searchVideos,
   searchShorts
 };
-    
