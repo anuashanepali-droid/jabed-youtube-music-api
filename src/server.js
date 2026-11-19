@@ -1,5 +1,5 @@
 const express = require("express");
-const ytSearch = require("yt-search");
+const { searchVideos, searchShorts } = require("./search");
 const { ensureReady, getVideoInfo, streamMedia } = require("../lib/ytdlp");
 
 const app = express();
@@ -7,17 +7,17 @@ app.disable("x-powered-by");
 app.use(express.json({ limit: "32kb" }));
 
 const PORT = Number(process.env.PORT || 3000);
-const MAX_RESULTS = 10;
 const MAX_QUERY_LENGTH = 180;
 
 app.get("/", (_req, res) => {
   res.json({
     ok: true,
-    name: "Render YouTube Music API",
-    version: "1.2.1",
+    name: "Jabed YouTube Music API",
+    version: "1.3.0",
     endpoints: {
       health: "/health",
       search: "/api/search?q=believer",
+      shorts: "/api/shorts?q=funny",
       info: "/api/info?v=VIDEO_ID",
       audio: "/api/stream?v=VIDEO_ID&type=audio",
       video: "/api/stream?v=VIDEO_ID&type=video"
@@ -41,26 +41,33 @@ app.get("/api/search", async (req, res) => {
       });
     }
 
-    const result = await ytSearch(q);
-    const videos = (result.videos || []).slice(0, MAX_RESULTS).map(video => ({
-      title: video.title || "",
-      videoId: video.videoId || "",
-      url: video.url || (video.videoId ? `https://www.youtube.com/watch?v=${video.videoId}` : ""),
-      duration: video.duration || null,
-      timestamp: video.timestamp || null,
-      seconds: Number(video.seconds || 0),
-      thumbnail: video.thumbnail || "",
-      author: video.author?.name || "",
-      views: Number(video.views || 0),
-      ago: video.ago || ""
-    }));
-
-    return res.json({ ok: true, query: q, total: videos.length, results: videos });
+    return res.json(await searchVideos(q));
   } catch (error) {
     console.error("[search]", error.stack || error.message || error);
     return res.status(502).json({
       ok: false,
       error: "YouTube search failed",
+      detail: error.message || String(error)
+    });
+  }
+});
+
+app.get("/api/shorts", async (req, res) => {
+  try {
+    const q = String(req.query.q || "").trim().slice(0, MAX_QUERY_LENGTH);
+    if (!q) {
+      return res.status(400).json({
+        ok: false,
+        error: "Missing search query. Use ?q=..."
+      });
+    }
+
+    return res.json(await searchShorts(q));
+  } catch (error) {
+    console.error("[shorts]", error.stack || error.message || error);
+    return res.status(502).json({
+      ok: false,
+      error: "YouTube Shorts search failed",
       detail: error.message || String(error)
     });
   }
@@ -83,6 +90,7 @@ app.get("/api/info", async (req, res) => {
 
     const seconds = Number(video.duration || 0);
     const thumbnails = Array.isArray(video.thumbnails) ? video.thumbnails : [];
+    const uploadDate = video.release_date || video.upload_date || null;
 
     return res.json({
       ok: true,
@@ -90,13 +98,14 @@ app.get("/api/info", async (req, res) => {
         title: video.title || "",
         videoId: video.id || id,
         url: video.webpage_url || `https://www.youtube.com/watch?v=${id}`,
-        duration: seconds ? { seconds, timestamp: video.duration_string || "" } : null,
-        seconds,
+        duration: video.duration_string || null,
         timestamp: video.duration_string || null,
+        seconds,
         thumbnail: video.thumbnail || thumbnails.at(-1)?.url || "",
         author: video.uploader || video.channel || "",
         views: Number(video.view_count || 0),
-        ago: video.upload_date || video.release_date || ""
+        ago: uploadDate,
+        published: uploadDate
       }
     });
   } catch (error) {
